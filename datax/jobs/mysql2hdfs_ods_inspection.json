@@ -1,0 +1,80 @@
+{
+  "job": {
+    "setting": {
+      "speed": {
+        "channel": 2
+      },
+      "errorLimit": {
+        "record": 0,
+        "percentage": 0.0
+      }
+    },
+    "content": [
+      {
+        "reader": {
+          "name": "mysqlreader",
+          "parameter": {
+            "username": "${mysql_user}",
+            "password": "${mysql_password}",
+            "connection": [
+              {
+                "querySql": [
+                  "SELECT inspection_id, property_address, inspection_type, inspection_date, notice_date, 'mysql.rental_ops.inspection' AS src_file, id AS src_row_no, DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') AS load_ts FROM rental_ops.inspection WHERE update_time < DATE_ADD('${dt}', INTERVAL 1 DAY)"
+                ],
+                "jdbcUrl": [
+                  "jdbc:mysql://${mysql_host}:3306/rental_ops?useSSL=false&characterEncoding=utf8&serverTimezone=Asia/Shanghai"
+                ]
+              }
+            ]
+          }
+        },
+        "writer": {
+          "name": "hdfswriter",
+          "parameter": {
+            "defaultFS": "hdfs://${namenode}:8020",
+            "fileType": "text",
+            "path": "/user/hive/warehouse/ods.db/ods_inspection/dt=${dt}",
+            "fileName": "inspection",
+            "column": [
+              {
+                "name": "inspection_id",
+                "type": "string"
+              },
+              {
+                "name": "property_address",
+                "type": "string"
+              },
+              {
+                "name": "inspection_type",
+                "type": "string"
+              },
+              {
+                "name": "inspection_date",
+                "type": "string"
+              },
+              {
+                "name": "notice_date",
+                "type": "string"
+              },
+              {
+                "name": "src_file",
+                "type": "string"
+              },
+              {
+                "name": "src_row_no",
+                "type": "bigint"
+              },
+              {
+                "name": "load_ts",
+                "type": "string"
+              }
+            ],
+            "writeMode": "truncate",
+            "fieldDelimiter": "\t",
+            "encoding": "UTF-8"
+          }
+        }
+      }
+    ]
+  }
+}

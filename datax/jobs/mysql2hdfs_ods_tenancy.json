@@ -1,0 +1,84 @@
+{
+  "job": {
+    "setting": {
+      "speed": {
+        "channel": 2
+      },
+      "errorLimit": {
+        "record": 0,
+        "percentage": 0.0
+      }
+    },
+    "content": [
+      {
+        "reader": {
+          "name": "mysqlreader",
+          "parameter": {
+            "username": "${mysql_user}",
+            "password": "${mysql_password}",
+            "connection": [
+              {
+                "querySql": [
+                  "SELECT tenancy_id, property_address, tenant_name, start_date, end_date, weekly_rent, 'mysql.rental_ops.tenancy' AS src_file, id AS src_row_no, DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') AS load_ts FROM rental_ops.tenancy WHERE update_time < DATE_ADD('${dt}', INTERVAL 1 DAY)"
+                ],
+                "jdbcUrl": [
+                  "jdbc:mysql://${mysql_host}:3306/rental_ops?useSSL=false&characterEncoding=utf8&serverTimezone=Asia/Shanghai"
+                ]
+              }
+            ]
+          }
+        },
+        "writer": {
+          "name": "hdfswriter",
+          "parameter": {
+            "defaultFS": "hdfs://${namenode}:8020",
+            "fileType": "text",
+            "path": "/user/hive/warehouse/ods.db/ods_tenancy/dt=${dt}",
+            "fileName": "tenancy",
+            "column": [
+              {
+                "name": "tenancy_id",
+                "type": "string"
+              },
+              {
+                "name": "property_address",
+                "type": "string"
+              },
+              {
+                "name": "tenant_name",
+                "type": "string"
+              },
+              {
+                "name": "start_date",
+                "type": "string"
+              },
+              {
+                "name": "end_date",
+                "type": "string"
+              },
+              {
+                "name": "weekly_rent",
+                "type": "string"
+              },
+              {
+                "name": "src_file",
+                "type": "string"
+              },
+              {
+                "name": "src_row_no",
+                "type": "bigint"
+              },
+              {
+                "name": "load_ts",
+                "type": "string"
+              }
+            ],
+            "writeMode": "truncate",
+            "fieldDelimiter": "\t",
+            "encoding": "UTF-8"
+          }
+        }
+      }
+    ]
+  }
+}

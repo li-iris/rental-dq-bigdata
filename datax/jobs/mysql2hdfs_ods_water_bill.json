@@ -1,0 +1,80 @@
+{
+  "job": {
+    "setting": {
+      "speed": {
+        "channel": 2
+      },
+      "errorLimit": {
+        "record": 0,
+        "percentage": 0.0
+      }
+    },
+    "content": [
+      {
+        "reader": {
+          "name": "mysqlreader",
+          "parameter": {
+            "username": "${mysql_user}",
+            "password": "${mysql_password}",
+            "connection": [
+              {
+                "querySql": [
+                  "SELECT bill_id, property_address, period_end, amount, invoiced_date, 'mysql.rental_ops.water_bill' AS src_file, id AS src_row_no, DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') AS load_ts FROM rental_ops.water_bill WHERE update_time < DATE_ADD('${dt}', INTERVAL 1 DAY)"
+                ],
+                "jdbcUrl": [
+                  "jdbc:mysql://${mysql_host}:3306/rental_ops?useSSL=false&characterEncoding=utf8&serverTimezone=Asia/Shanghai"
+                ]
+              }
+            ]
+          }
+        },
+        "writer": {
+          "name": "hdfswriter",
+          "parameter": {
+            "defaultFS": "hdfs://${namenode}:8020",
+            "fileType": "text",
+            "path": "/user/hive/warehouse/ods.db/ods_water_bill/dt=${dt}",
+            "fileName": "water_bill",
+            "column": [
+              {
+                "name": "bill_id",
+                "type": "string"
+              },
+              {
+                "name": "property_address",
+                "type": "string"
+              },
+              {
+                "name": "period_end",
+                "type": "string"
+              },
+              {
+                "name": "amount",
+                "type": "string"
+              },
+              {
+                "name": "invoiced_date",
+                "type": "string"
+              },
+              {
+                "name": "src_file",
+                "type": "string"
+              },
+              {
+                "name": "src_row_no",
+                "type": "bigint"
+              },
+              {
+                "name": "load_ts",
+                "type": "string"
+              }
+            ],
+            "writeMode": "truncate",
+            "fieldDelimiter": "\t",
+            "encoding": "UTF-8"
+          }
+        }
+      }
+    ]
+  }
+}
