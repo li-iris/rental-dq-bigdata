@@ -1,0 +1,23 @@
+{
+  "_comment": "ODS 源定义：文件匹配规则 + 期望表头。表头对不上（有人插列/改名）直接中止，不往下跑",
+  "property": {
+    "file_glob": "property*.csv",
+    "ods_table": "ods.ods_property",
+    "columns": ["property_address", "in_management", "bedrooms"]
+  },
+  "tenancy": {
+    "file_glob": "tenancy_*.csv",
+    "ods_table": "ods.ods_tenancy",
+    "columns": ["tenancy_id", "property_address", "tenant_name", "start_date", "end_date", "weekly_rent"]
+  },
+  "water_bill": {
+    "file_glob": "water_bill*.csv",
+    "ods_table": "ods.ods_water_bill",
+    "columns": ["bill_id", "property_address", "period_end", "amount", "invoiced_date"]
+  },
+  "inspection": {
+    "file_glob": "inspection*.csv",
+    "ods_table": "ods.ods_inspection",
+    "columns": ["inspection_id", "property_address", "inspection_type", "inspection_date", "notice_date"]
+  }
+}

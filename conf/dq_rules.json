@@ -1,0 +1,77 @@
+{
+  "_comment": "数据质量规则：每条规则是一段返回【失败行】的 SQL，必须输出 property_key 和 detail 两列。level=error 表示数据坏了，流程以退出码 2 结束；level=warn 表示业务需要跟进，进入问题清单。${xxx} 由 dq_check.py 用 business_rules.json 和运行参数替换。",
+  "rules": [
+    {
+      "rule_id": "E01_no_rows_lost",
+      "level": "error",
+      "rule_desc": "ODS 到 DWD 行数必须一致（清洗不允许丢行）",
+      "sql": "SELECT 'ALL' AS property_key, concat(src, ': ods=', cast(o_cnt AS STRING), ', dwd=', cast(d_cnt AS STRING)) AS detail FROM (SELECT 'property' AS src, (SELECT count(*) FROM ods.ods_property WHERE dt='${dt}') AS o_cnt, (SELECT count(*) FROM dwd.dwd_property_df WHERE dt='${dt}') AS d_cnt UNION ALL SELECT 'tenancy', (SELECT count(*) FROM ods.ods_tenancy WHERE dt='${dt}'), (SELECT count(*) FROM dwd.dwd_tenancy_df WHERE dt='${dt}') UNION ALL SELECT 'water_bill', (SELECT count(*) FROM ods.ods_water_bill WHERE dt='${dt}'), (SELECT count(*) FROM dwd.dwd_water_bill_df WHERE dt='${dt}') UNION ALL SELECT 'inspection', (SELECT count(*) FROM ods.ods_inspection WHERE dt='${dt}'), (SELECT count(*) FROM dwd.dwd_inspection_df WHERE dt='${dt}')) t WHERE o_cnt <> d_cnt"
+    },
+    {
+      "rule_id": "E02_tenancy_period_inverted",
+      "level": "error",
+      "rule_desc": "租约到期日早于起租日",
+      "sql": "SELECT property_key, concat('tenancy_id=', tenancy_id, ', start=', cast(start_date AS STRING), ', end=', cast(end_date AS STRING), ', 来源=', src_file, '#', cast(src_row_no AS STRING)) AS detail FROM dwd.dwd_tenancy_df WHERE dt='${dt}' AND is_current = 1 AND end_date < start_date"
+    },
+    {
+      "rule_id": "E03_tenancy_property_not_found",
+      "level": "error",
+      "rule_desc": "租约的房产不在在管房产维度里（外键找不到）",
+      "sql": "SELECT t.property_key, concat('tenancy_id=', t.tenancy_id, ', 来源=', t.src_file, '#', cast(t.src_row_no AS STRING)) AS detail FROM dwd.dwd_tenancy_df t LEFT JOIN dim.dim_property d ON t.property_key = d.property_key AND d.dt='${dt}' WHERE t.dt='${dt}' AND t.is_current = 1 AND t.property_key IS NOT NULL AND d.property_key IS NULL"
+    },
+    {
+      "rule_id": "E04_rent_not_positive",
+      "level": "error",
+      "rule_desc": "周租金为 0 或负数",
+      "sql": "SELECT property_key, concat('tenancy_id=', tenancy_id, ', weekly_rent=', cast(weekly_rent AS STRING)) AS detail FROM dwd.dwd_tenancy_df WHERE dt='${dt}' AND is_current = 1 AND weekly_rent <= 0"
+    },
+    {
+      "rule_id": "E05_water_amount_invalid",
+      "level": "error",
+      "rule_desc": "水费金额缺失或为负数",
+      "sql": "SELECT property_key, concat('bill_id=', bill_id, ', 来源=', src_file, '#', cast(src_row_no AS STRING)) AS detail FROM dwd.dwd_water_bill_df WHERE dt='${dt}' AND (amount IS NULL OR amount < 0)"
+    },
+    {
+      "rule_id": "E06_water_bill_duplicated",
+      "level": "error",
+      "rule_desc": "水费账单编号重复",
+      "sql": "SELECT max(property_key) AS property_key, concat('bill_id=', bill_id, ' 出现 ', cast(count(*) AS STRING), ' 次') AS detail FROM dwd.dwd_water_bill_df WHERE dt='${dt}' GROUP BY bill_id HAVING count(*) > 1"
+    },
+    {
+      "rule_id": "W01_water_not_invoiced",
+      "level": "warn",
+      "rule_desc": "水费超过 ${water_invoice_deadline_days} 天未向租客开票，可能无法追回",
+      "sql": "SELECT property_key, concat('bill_id=', bill_id, ', 周期结束=', cast(period_end AS STRING), ', 已过 ', cast(datediff(to_date('${report_date}'), period_end) AS STRING), ' 天, 金额=', cast(amount AS STRING)) AS detail FROM dwd.dwd_water_bill_df WHERE dt='${dt}' AND invoiced_date IS NULL AND period_end IS NOT NULL AND datediff(to_date('${report_date}'), period_end) > ${water_invoice_deadline_days}"
+    },
+    {
+      "rule_id": "W02_inspection_notice_short",
+      "level": "warn",
+      "rule_desc": "房屋检查提前通知不足 ${inspection_notice_min_days} 天",
+      "sql": "SELECT property_key, concat('inspection_id=', inspection_id, ', 通知=', cast(notice_date AS STRING), ', 检查=', cast(inspection_date AS STRING), ', 提前 ', cast(datediff(inspection_date, notice_date) AS STRING), ' 天') AS detail FROM dwd.dwd_inspection_df WHERE dt='${dt}' AND notice_date IS NOT NULL AND inspection_date IS NOT NULL AND datediff(inspection_date, notice_date) < ${inspection_notice_min_days}"
+    },
+    {
+      "rule_id": "W03_too_many_routine_inspections",
+      "level": "warn",
+      "rule_desc": "同一房产一年内例行检查超过 ${max_routine_inspections_per_year} 次",
+      "sql": "SELECT property_key, concat(cast(year(inspection_date) AS STRING), ' 年例行检查 ', cast(count(*) AS STRING), ' 次') AS detail FROM dwd.dwd_inspection_df WHERE dt='${dt}' AND inspection_type = 'routine' AND property_key IS NOT NULL AND inspection_date IS NOT NULL GROUP BY property_key, year(inspection_date) HAVING count(*) > ${max_routine_inspections_per_year}"
+    },
+    {
+      "rule_id": "W04_rent_basis_unclear",
+      "level": "warn",
+      "rule_desc": "本月租金口径说不清（有租约但租金缺失），未硬算，需业务确认",
+      "sql": "SELECT property_key, concat('月份=', cast(month_start AS STRING)) AS detail FROM dws.dws_rent_roll_month WHERE dt='${dt}' AND rent_basis = 'unclear' AND month_start = trunc(to_date('${report_date}'), 'MM')"
+    },
+    {
+      "rule_id": "W05_address_unparsed",
+      "level": "warn",
+      "rule_desc": "地址无法标准化，无法关联到房产",
+      "sql": "SELECT CAST(NULL AS STRING) AS property_key, concat(src, ': ', address_raw_or_id) AS detail FROM (SELECT 'property' AS src, concat(address_raw, ' @', src_file, '#', cast(src_row_no AS STRING)) AS address_raw_or_id FROM dwd.dwd_property_df WHERE dt='${dt}' AND address_parse_ok = 0 UNION ALL SELECT 'tenancy', concat('tenancy_id=', tenancy_id, ' @', src_file, '#', cast(src_row_no AS STRING)) FROM dwd.dwd_tenancy_df WHERE dt='${dt}' AND address_parse_ok = 0 UNION ALL SELECT 'water_bill', concat('bill_id=', bill_id, ' @', src_file, '#', cast(src_row_no AS STRING)) FROM dwd.dwd_water_bill_df WHERE dt='${dt}' AND address_parse_ok = 0 UNION ALL SELECT 'inspection', concat('inspection_id=', inspection_id, ' @', src_file, '#', cast(src_row_no AS STRING)) FROM dwd.dwd_inspection_df WHERE dt='${dt}' AND address_parse_ok = 0) t"
+    },
+    {
+      "rule_id": "W06_date_unresolved",
+      "level": "warn",
+      "rule_desc": "日期无法解析或缺年份且无法按规则推断，已置空",
+      "sql": "SELECT property_key, concat(src, ' ', rec_id, ': ', date_status) AS detail FROM (SELECT 'tenancy' AS src, tenancy_id AS rec_id, property_key, date_status FROM dwd.dwd_tenancy_df WHERE dt='${dt}' UNION ALL SELECT 'water_bill', bill_id, property_key, date_status FROM dwd.dwd_water_bill_df WHERE dt='${dt}' UNION ALL SELECT 'inspection', inspection_id, property_key, date_status FROM dwd.dwd_inspection_df WHERE dt='${dt}') t WHERE date_status LIKE '%unresolved%' OR date_status LIKE '%invalid%'"
+    }
+  ]
+}

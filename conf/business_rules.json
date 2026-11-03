@@ -1,0 +1,14 @@
+{
+  "_comment": "业务规则参数：数值由业务方决定，开发只改这里，不改代码",
+  "single_room_rent_threshold": 600,
+  "water_invoice_deadline_days": 90,
+  "inspection_notice_min_days": 7,
+  "max_routine_inspections_per_year": 4,
+  "date_no_year_max_ahead_days": 60,
+  "rent_roll_months": 12,
+  "source_priority": {
+    "tenancy_v1.csv": 1,
+    "tenancy_v2.csv": 2,
+    "tenancy_entry.csv": 99
+  }
+}
